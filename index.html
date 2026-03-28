@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>anything</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 0 15px; background: #f5f5f5; }
+    .container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .logo { text-align: center; margin-bottom: 20px; }
+    .logo img { height: 60px; width: auto; }
+    h2 { text-align: center; color: #333; margin-bottom: 20px; font-size: 28px; }
+    input, textarea { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+    textarea { min-height: 100px; resize: vertical; }
+    button { width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; transition: background 0.2s; }
+    .btn-primary { background: #4285f4; color: white; }
+    .btn-primary:hover { background: #3367d6; }
+    .btn-secondary { background: #ea4335; color: white; }
+    .btn-secondary:hover { background: #d3362f; }
+    .post { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #4285f4; }
+    .hidden { display: none; }
+  </style>
+  <!-- 优先加载Supabase SDK，用国内可访问的CDN源，解决超时问题 -->
+  <script src="https://cdn.bootcdn.net/ajax/libs/supabase/2.45.3/supabase-js.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <div class="logo">
+    <img src="logo.png" alt="anything logo">
+  </div>
+  <h2>anything</h2>
+
+  <div id="auth">
+    <input id="email" type="email" placeholder="输入邮箱">
+    <input id="password" type="password" placeholder="输入密码（至少6位）">
+    <button class="btn-primary" onclick="register()">注册账号</button>
+    <button class="btn-primary" onclick="login()">登录</button>
+  </div>
+
+  <div id="userArea" class="hidden">
+    <textarea id="content" placeholder="分享你的想法..."></textarea>
+    <button class="btn-primary" onclick="sendPost()">发布动态</button>
+    <button class="btn-secondary" onclick="logout()">退出登录</button>
+    <div id="posts" style="margin-top: 20px;"></div>
+  </div>
+</div>
+
+<script>
+// 1. 页面加载完成后再初始化Supabase，彻底解决初始化顺序问题
+let supabase;
+window.onload = async function() {
+  // 初始化Supabase客户端（你的项目信息已正确填写）
+  supabase = supabase.createClient(
+    "https://rxidyqprcvzabnosvdp.supabase.co",
+    "sb_publishable_h-PiY1QFiuijjjJK9B-Y0A_PMjT5iX8"
+  );
+  // 初始化完成后检查登录状态
+  await updateUser();
+};
+
+let user;
+
+// 2. 检查用户登录状态
+async function updateUser() {
+  if (!supabase) return;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    document.getElementById("auth").classList.add("hidden");
+    document.getElementById("userArea").classList.remove("hidden");
+    loadPosts();
+  } else {
+    document.getElementById("auth").classList.remove("hidden");
+    document.getElementById("userArea").classList.add("hidden");
+  }
+}
+
+// 3. 注册函数（与按钮onclick完全匹配）
+async function register() {
+  if (!supabase) return alert("系统加载中，请稍等");
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const { error } = await supabase.auth.signUp({ email, password });
+  if (error) alert(error.message);
+  else {
+    alert("注册成功！请登录");
+    updateUser();
+  }
+}
+
+// 4. 登录函数
+async function login() {
+  if (!supabase) return alert("系统加载中，请稍等");
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) alert(error.message);
+  else updateUser();
+}
+
+// 5. 退出登录
+async function logout() {
+  if (!supabase) return;
+  await supabase.auth.signOut();
+  updateUser();
+}
+
+// 6. 发布动态
+async function sendPost() {
+  if (!supabase) return alert("系统加载中，请稍等");
+  const content = document.getElementById("content").value.trim();
+  if (!content) return alert("请输入内容");
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return alert("请先登录");
+  const { error } = await supabase.from("posts").insert([{ content, user_id: user.id }]);
+  if (error) alert(error.message);
+  else {
+    document.getElementById("content").value = "";
+    loadPosts();
+  }
+}
+
+// 7. 加载所有动态
+async function loadPosts() {
+  if (!supabase) return;
+  const { data, error } = await supabase.from("posts").select("*").order("created_at", { ascending: false });
+  if (error) return console.error(error);
+  const div = document.getElementById("posts");
+  div.innerHTML = "";
+  data.forEach(post => {
+    const p = document.createElement("div");
+    p.className = "post";
+    p.textContent = post.content;
+    div.appendChild(p);
+  });
+}
+</script>
+</body>
+</html>
