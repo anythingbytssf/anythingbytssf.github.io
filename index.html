@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>anything</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 0 15px; background: #f5f5f5; }
+    .container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .logo { text-align: center; margin-bottom: 20px; }
+    .logo img { height: 60px; width: auto; }
+    h2 { text-align: center; color: #333; margin-bottom: 20px; font-size: 28px; }
+    input, textarea { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+    textarea { min-height: 100px; resize: vertical; }
+    button { width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; transition: background 0.2s; }
+    .btn-primary { background: #4285f4; color: white; }
+    .btn-primary:hover { background: #3367d6; }
+    .btn-secondary { background: #ea4335; color: white; }
+    .btn-secondary:hover { background: #d3362f; }
+    .btn-green { background: #0f9d58; color: white; }
+    .btn-green:hover { background: #0c7c43; }
+    .post { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #4285f4; }
+    .hidden { display: none; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="container">
+  <div class="logo">
+    <img src="logo.png" alt="anything logo">
+  </div>
+  <h2>anything</h2>
+
+  <!-- 连接 Supabase 按钮 -->
+  <button class="btn-green" onclick="connectSupabase()">连接 Supabase</button>
+
+  <div id="auth">
+    <input id="email" type="email" placeholder="输入邮箱">
+    <input id="password" type="password" placeholder="输入密码（至少6位）">
+    <button class="btn-primary" onclick="userRegister()">注册账号</button>
+    <button class="btn-primary" onclick="userLogin()">登录</button>
+  </div>
+
+  <div id="userArea" class="hidden">
+    <textarea id="content" placeholder="分享你的想法..."></textarea>
+    <button class="btn-primary" onclick="postSend()">发布动态</button>
+    <button class="btn-green" onclick="checkConnection()">检查连接状态</button>
+    <button class="btn-secondary" onclick="userLogout()">退出登录</button>
+    <div id="posts" style="margin-top: 20px;"></div>
+  </div>
+</div>
+
+<script>
+// 配置
+const SUPABASE_URL = "https://rxidyqprcvzabnosvdp.supabase.co";
+const SUPABASE_KEY = "sb_publishable_h-PiY1QFiuijjjJK9B-Y0A_PMjT5iX8";
+let supabaseClient = null;
+
+// 连接 Supabase
+function connectSupabase() {
+  if (supabaseClient) {
+    alert("✅ 已连接到 Supabase");
+    return;
+  }
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  alert("✅ 成功连接 Supabase！");
+  checkUser();
+}
+
+// 检查连接状态
+async function checkConnection() {
+  if (!supabaseClient) {
+    alert("❌ 未连接 Supabase");
+    return;
+  }
+  alert("✅ 已正常连接 Supabase");
+}
+
+// 页面加载
+window.onload = function () {
+  console.log("页面加载完成");
+};
+
+// 检查登录
+async function checkUser() {
+  if (!supabaseClient) return;
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (user) {
+    document.getElementById("auth").classList.add("hidden");
+    document.getElementById("userArea").classList.remove("hidden");
+    await loadPosts();
+  } else {
+    document.getElementById("auth").classList.remove("hidden");
+    document.getElementById("userArea").classList.add("hidden");
+  }
+}
+
+// 注册
+async function userRegister() {
+  if (!supabaseClient) return alert("请先点击【连接 Supabase】");
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+  if (error) alert(error.message);
+  else alert("注册成功！");
+}
+
+// 登录
+async function userLogin() {
+  if (!supabaseClient) return alert("请先点击【连接 Supabase】");
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) alert(error.message);
+  else checkUser();
+}
+
+// 退出
+async function userLogout() {
+  await supabaseClient.auth.signOut();
+  checkUser();
+}
+
+// 发布
+async function postSend() {
+  if (!supabaseClient) return alert("请先连接");
+  const content = document.getElementById("content").value.trim();
+  if (!content) return alert("请输入内容");
+  
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) return alert("请先登录");
+
+  const { error } = await supabaseClient.from("posts").insert([
+    { user_id: user.id, content }
+  ]);
+
+  if (error) alert(error.message);
+  else {
+    document.getElementById("content").value = "";
+    loadPosts();
+  }
+}
+
+// 加载帖子
+async function loadPosts() {
+  const { data, error } = await supabaseClient
+    .from("posts")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) return console.error(error);
+  
+  const postContainer = document.getElementById("posts");
+  postContainer.innerHTML = "";
+  
+  data.forEach(post => {
+    const div = document.createElement("div");
+    div.className = "post";
+    div.textContent = post.content;
+    postContainer.appendChild(div);
+  });
+}
+</script>
+</body>
+</html>
